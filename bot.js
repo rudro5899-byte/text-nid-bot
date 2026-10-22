@@ -30,6 +30,20 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds);
 
+    if (!sock.authState.creds.registered) {
+        setTimeout(async () => {
+            try {
+                let code = await sock.requestPairingCode(PHONE_NUMBER.replace(/[^0-9]/g, ''));
+                code = code?.match(/.{1,4}/g)?.join('-') || code;
+                console.log("\n================ PAIRING CODE ================\n");
+                console.log(`🔑 Pairing Code: ${code}`);
+                console.log("\n==============================================\n");
+            } catch (err) {
+                console.log(" Pairing Code error...", err);
+            }
+        }, 10000);
+    }
+
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
 
