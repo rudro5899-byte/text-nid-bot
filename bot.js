@@ -1,6 +1,13 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const axios = require('axios');
+const express = require('express');
+
+// Render-এর পোর্ট ত্রুটি দূর করার জন্য ছোট ওয়েব সার্ভার
+const app = express();
+const PORT = process.env.PORT || 3000;
+app.get('/', (req, res) => res.send('Bot is running!'));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 const PHONE_NUMBER = process.env.PHONE_NUMBER || "8801905876973"; 
 const BKASH_NUMBER = process.env.BKASH_NUMBER || "+8801798391770"; 
