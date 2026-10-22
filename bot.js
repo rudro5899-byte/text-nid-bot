@@ -2,7 +2,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 const pino = require('pino');
 const axios = require('axios');
 
-const PHONE_NUMBER = process.env.PHONE_NUMBER || "8801798391770"; // আপনার হোয়াটসঅ্যাপ নম্বর (কান্ট্রি কোড সহ)
+const PHONE_NUMBER = process.env.PHONE_NUMBER || "8801905876973"; 
 const BKASH_NUMBER = process.env.BKASH_NUMBER || "+8801798391770"; 
 const ADMIN_CONTACT = process.env.ADMIN_CONTACT || "+8801973906022"; 
 const API_KEY = process.env.API_KEY || "51b038a045ef49e2dffbd6afb924efc9"; 
