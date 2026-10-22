@@ -55,28 +55,29 @@ async function startBot() {
             if (!msg.message) continue;
 
             const sender = msg.key.remoteJid;
-            const senderNumber = sender.replace(/[^0-9]/g, '');
+            const isFromMe = msg.key.fromMe;
             const text = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
             const cleanText = text.trim().toLowerCase();
 
-            if (!users[sender]) users[sender] = { tokens: 0 };
-            const user = users[sender];
+            const isQuoted = msg.message.extendedTextMessage?.contextInfo?.participant;
+            const targetUser = isQuoted || sender;
+
+            if (!users[targetUser]) users[targetUser] = { tokens: 0 };
+            const user = users[targetUser];
 
             // 🔒 শুধুমাত্র অ্যাডমিন টোকেন সেট করতে পারবে
             if (cleanText.startsWith('!settoken')) {
                 const cleanAdmin = ADMIN_CONTACT.replace(/[^0-9]/g, '');
-                
-                if (senderNumber !== cleanAdmin) {
+                const senderNumber = sender.replace(/[^0-9]/g, '');
+
+                if (!isFromMe && senderNumber !== cleanAdmin) {
                     await sock.sendMessage(sender, { text: '❌ দুঃখিত, কেবল অ্যাডমিনই টোকেন সেট করতে পারবেন!' });
                     return;
                 }
 
-                const isQuoted = msg.message.extendedTextMessage?.contextInfo?.participant;
-                const targetUser = isQuoted || sender;
                 const amount = parseInt(cleanText.split(' ')[1]);
 
                 if (!isNaN(amount)) {
-                    if (!users[targetUser]) users[targetUser] = { tokens: 0 };
                     users[targetUser].tokens = amount;
                     await sock.sendMessage(sender, { text: `✅ টোকেন সেট করা হয়েছে: ${amount}` });
                     if (targetUser !== sender) {
@@ -86,7 +87,8 @@ async function startBot() {
                 return;
             }
 
-            if (msg.key.fromMe) continue;
+            // বটের নিজের নম্বর থেকে আসা অন্য মেসেজগুলো এড়িয়ে যাবে
+            if (isFromMe) continue;
 
             if (cleanText === 'balance' || cleanText === 'token' || cleanText === 'টোকেন') {
                 await sock.sendMessage(sender, { text: `আপনার বর্তমান টোকেন: ${user.tokens}` });
