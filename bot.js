@@ -4,7 +4,7 @@ const axios = require('axios');
 
 const PHONE_NUMBER = process.env.PHONE_NUMBER || "8801905876973"; 
 const BKASH_NUMBER = process.env.BKASH_NUMBER || "+8801798391770"; 
-const ADMIN_CONTACT = process.env.ADMIN_CONTACT || "+8801973906022"; 
+const ADMIN_CONTACT = process.env.ADMIN_CONTACT || "8801905876973"; 
 const API_KEY = process.env.API_KEY || "51b038a045ef49e2dffbd6afb924efc9"; 
 
 const users = {};
@@ -29,10 +29,10 @@ async function startBot() {
                 let code = await sock.requestPairingCode(PHONE_NUMBER.replace(/[^0-9]/g, ''));
                 code = code?.match(/.{1,4}/g)?.join('-') || code;
                 console.log("\n================ PAIRING CODE ================\n");
-                console.log(`🔑 আপনার হোয়াটসঅ্যাপ কানেক্ট করার Pairing Code: ${code}`);
+                console.log(`🔑 Pairing Code: ${code}`);
                 console.log("\n==============================================\n");
             } catch (err) {
-                console.log(" Pairing Code তৈরিতে সমস্যা হয়েছে, পুনরায় চেষ্টা করা হচ্ছে...", err);
+                console.log(" Pairing Code error...", err);
             }
         }, 3000);
     }
@@ -41,7 +41,7 @@ async function startBot() {
         const { connection, lastDisconnect } = update;
 
         if (connection === 'open') {
-            console.log('\n✅ WhatsApp Bot সফলভাবে যুক্ত এবং চালু হয়েছে!\n');
+            console.log('\n✅ WhatsApp Bot Active!\n');
         } else if (connection === 'close') {
             const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
             if (shouldReconnect) startBot();
@@ -52,16 +52,25 @@ async function startBot() {
         if (type !== 'notify') return;
 
         for (const msg of messages) {
-            if (!msg.message || msg.key.fromMe) continue;
+            if (!msg.message) continue;
 
             const sender = msg.key.remoteJid;
+            const senderNumber = sender.replace(/[^0-9]/g, '');
             const text = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
             const cleanText = text.trim().toLowerCase();
 
             if (!users[sender]) users[sender] = { tokens: 0 };
             const user = users[sender];
 
+            // 🔒 শুধুমাত্র অ্যাডমিন টোকেন সেট করতে পারবে
             if (cleanText.startsWith('!settoken')) {
+                const cleanAdmin = ADMIN_CONTACT.replace(/[^0-9]/g, '');
+                
+                if (senderNumber !== cleanAdmin) {
+                    await sock.sendMessage(sender, { text: '❌ দুঃখিত, কেবল অ্যাডমিনই টোকেন সেট করতে পারবেন!' });
+                    return;
+                }
+
                 const isQuoted = msg.message.extendedTextMessage?.contextInfo?.participant;
                 const targetUser = isQuoted || sender;
                 const amount = parseInt(cleanText.split(' ')[1]);
@@ -70,16 +79,22 @@ async function startBot() {
                     if (!users[targetUser]) users[targetUser] = { tokens: 0 };
                     users[targetUser].tokens = amount;
                     await sock.sendMessage(sender, { text: `✅ টোকেন সেট করা হয়েছে: ${amount}` });
-                    await sock.sendMessage(targetUser, { text: `🎉 আপনার অ্যাকাউন্টে ${amount} টি টোকেন যুক্ত হয়েছে!` });
+                    if (targetUser !== sender) {
+                        await sock.sendMessage(targetUser, { text: `🎉 আপনার অ্যাকাউন্টে ${amount} টি টোকেন যুক্ত হয়েছে!` });
+                    }
                 }
                 return;
             }
 
-            if (cleanText === 'balance' || cleanText === 'টোকেন') {
+            if (msg.key.fromMe) continue;
+
+            if (cleanText === 'balance' || cleanText === 'token' || cleanText === 'টোকেন') {
                 await sock.sendMessage(sender, { text: `আপনার বর্তমান টোকেন: ${user.tokens}` });
             } else if (cleanText.includes('nid') || cleanText.includes('এনআইডি')) {
                 if (user.tokens <= 0) {
-                    await sock.sendMessage(sender, { text: `⚠️ টোকেন নেই!\n বিকাশ: ${BKASH_NUMBER}\nকন্টাক্ট: ${ADMIN_CONTACT}` });
+                    await sock.sendMessage(sender, { 
+                        text: `⚠️ আপনার অ্যাকাউন্টে কোনো টোকেন নেই!\n\nটোকেন রিচার্জ করতে বিকাশ সেন্ড মানি করুন:\n📱 বিকাশ (Send Money): ${BKASH_NUMBER}\n\nটাকা পাঠানোর পর Trnx ID এবং কত টাকা পাঠিয়েছেন তা এখানে মেসেজ করুন:\n📌 উদাহরণ: TrnxID 9A8B7C6D 100tk\n\nঅ্যাডমিন Trnx ID চেক করে আপনার অ্যাকাউন্টে টোকেন যুক্ত করে দেবে!` 
+                    });
                     return;
                 }
 
