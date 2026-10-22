@@ -15,6 +15,7 @@ const ADMIN_CONTACT = "8801905876973";
 const API_KEY = process.env.API_KEY || "51b038a045ef49e2dffbd6afb924efc9"; 
 
 const users = {};
+let isPairingRequested = false;
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -30,7 +31,8 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    if (!sock.authState.creds.registered) {
+    if (!sock.authState.creds.registered && !isPairingRequested) {
+        isPairingRequested = true;
         setTimeout(async () => {
             try {
                 let code = await sock.requestPairingCode(PHONE_NUMBER.replace(/[^0-9]/g, ''));
@@ -40,8 +42,9 @@ async function startBot() {
                 console.log("\n==============================================\n");
             } catch (err) {
                 console.log(" Pairing Code error...", err);
+                isPairingRequested = false;
             }
-        }, 3000);
+        }, 5000);
     }
 
     sock.ev.on('connection.update', (update) => {
@@ -49,6 +52,7 @@ async function startBot() {
 
         if (connection === 'open') {
             console.log('\n✅ WhatsApp Bot Active!\n');
+            isPairingRequested = false;
         } else if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
