@@ -25,7 +25,9 @@ async function startBot() {
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
-        browser: ["Ubuntu", "Chrome", "20.0.04"]
+        browser: ["Ubuntu", "Chrome", "20.0.04"],
+        connectTimeoutMs: 60000,
+        keepAliveIntervalMs: 10000
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -41,7 +43,7 @@ async function startBot() {
             } catch (err) {
                 console.log(" Pairing Code error...", err);
             }
-        }, 10000);
+        }, 2000);
     }
 
     sock.ev.on('connection.update', (update) => {
@@ -50,8 +52,11 @@ async function startBot() {
         if (connection === 'open') {
             console.log('\n✅ WhatsApp Bot Active!\n');
         } else if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) startBot();
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            if (shouldReconnect) {
+                setTimeout(startBot, 3000);
+            }
         }
     });
 
