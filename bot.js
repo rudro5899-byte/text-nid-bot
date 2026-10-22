@@ -115,25 +115,45 @@ async function startBot() {
                 }
 
                 user.tokens -= 1;
-                await sock.sendMessage(sender, { text: `⏳ প্রসেস হচ্ছে... (অবশিষ্ট: ${user.tokens})` });
+                await sock.sendMessage(sender, { text: `⏳ প্রসেস হচ্ছে... (অবশিষ্ট টোকেন: ${user.tokens})` });
 
                 try {
-                    const apiUrl = `https://virtual-suport.com/nid.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
+                    const apiUrl = `https://virtual-suport.com/sv.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
                     const response = await axios.get(apiUrl);
-                    const pdfLink = response.data?.pdfUrl || response.data?.downloadUrl || response.data?.file || response.data?.url || (typeof response.data === 'string' && response.data.startsWith('http') ? response.data : null);
+                    const resData = response.data;
 
-                    if (pdfLink) {
-                        await sock.sendMessage(sender, {
-                            document: { url: pdfLink },
-                            mimetype: 'application/pdf',
-                            fileName: `NID_${nidNumber}.pdf`,
-                            caption: '✅ NID Server Copy PDF ফাইল।'
-                        });
+                    if (resData && resData.success && resData['data-Info']) {
+                        const info = resData['data-Info'];
+                        const printLink = `https://virtual-suport.com/nid.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
+                        
+                        const replyText = `✅ *NID Server Copy Found!*\n\n` +
+                            `👤 *নাম (বাংলা):* ${info.nameBangla}\n` +
+                            `👤 *Name (English):* ${info.nameEnglish}\n` +
+                            `🆔 *NID No:* ${info.nationalId}\n` +
+                            `📌 *PIN No:* ${info.pin}\n` +
+                            `📅 *জন্ম তারিখ:* ${info.dateOfBirth}\n` +
+                            `♂️ *লিঙ্গ:* ${info.gender}\n` +
+                            `🩸 *ব্লাড গ্রুপ:* ${info.bloodGroup}\n` +
+                            `👨‍👦 *পিতা:* ${info.fatherName}\n` +
+                            `👩‍👦 *মাতা:* ${info.motherName}\n` +
+                            `🏠 *বর্তমান ঠিকানা:* ${info.preAddress?.addressLine || 'N/A'}\n` +
+                            `🏠 *স্থায়ী ঠিকানা:* ${info.perAddress?.addressLine || 'N/A'}\n\n` +
+                            `🖨️ *PDF/Print Link:* ${printLink}`;
+
+                        if (info.photo) {
+                            await sock.sendMessage(sender, { 
+                                image: { url: info.photo }, 
+                                caption: replyText 
+                            });
+                        } else {
+                            await sock.sendMessage(sender, { text: replyText });
+                        }
+
                     } else {
-                        await sock.sendMessage(sender, { text: '⚠️ ফাইল পাওয়া যায়নি।' });
+                        await sock.sendMessage(sender, { text: '⚠️ দুঃখিত, এই NID এবং জন্ম তারিখ দিয়ে কোনো তথ্য পাওয়া যায়নি।' });
                     }
                 } catch (error) {
-                    await sock.sendMessage(sender, { text: '⚠️ সার্ভারে সমস্যা হয়েছে।' });
+                    await sock.sendMessage(sender, { text: '⚠️ সার্ভারে সংযোগ করতে সমস্যা হয়েছে।' });
                 }
             }
         }
