@@ -87,7 +87,6 @@ async function startBot() {
                 return;
             }
 
-            // বটের নিজের নম্বর থেকে আসা অন্য মেসেজগুলো এড়িয়ে যাবে
             if (isFromMe) continue;
 
             if (cleanText === 'balance' || cleanText === 'token' || cleanText === 'টোকেন') {
