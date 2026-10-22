@@ -2,6 +2,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 const pino = require('pino');
 const axios = require('axios');
 
+const PHONE_NUMBER = process.env.PHONE_NUMBER || "8801798391770"; // আপনার হোয়াটসঅ্যাপ নম্বর (কান্ট্রি কোড সহ)
 const BKASH_NUMBER = process.env.BKASH_NUMBER || "+8801798391770"; 
 const ADMIN_CONTACT = process.env.ADMIN_CONTACT || "+8801973906022"; 
 const API_KEY = process.env.API_KEY || "51b038a045ef49e2dffbd6afb924efc9"; 
@@ -15,22 +16,29 @@ async function startBot() {
     const sock = makeWASocket({
         version,
         auth: state,
-        printQRInTerminal: true,
+        printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
-        browser: ["Mac OS", "Chrome", "121.0.6167.160"]
+        browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
     sock.ev.on('creds.update', saveCreds);
 
+    if (!sock.authState.creds.registered) {
+        setTimeout(async () => {
+            try {
+                let code = await sock.requestPairingCode(PHONE_NUMBER.replace(/[^0-9]/g, ''));
+                code = code?.match(/.{1,4}/g)?.join('-') || code;
+                console.log("\n================ PAIRING CODE ================\n");
+                console.log(`🔑 আপনার হোয়াটসঅ্যাপ কানেক্ট করার Pairing Code: ${code}`);
+                console.log("\n==============================================\n");
+            } catch (err) {
+                console.log(" Pairing Code তৈরিতে সমস্যা হয়েছে, পুনরায় চেষ্টা করা হচ্ছে...", err);
+            }
+        }, 3000);
+    }
+
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
-        
-        if (qr) {
-            console.log("\n================ QR CODE START ================\n");
-            console.log("আপনার হোয়াটসঅ্যাপ দিয়ে নিচের QR Code-টি স্ক্যান করুন:");
-            console.log(qr);
-            console.log("\n================= QR CODE END =================\n");
-        }
+        const { connection, lastDisconnect } = update;
 
         if (connection === 'open') {
             console.log('\n✅ WhatsApp Bot সফলভাবে যুক্ত এবং চালু হয়েছে!\n');
