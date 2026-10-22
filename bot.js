@@ -2,6 +2,8 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 const pino = require('pino');
 const axios = require('axios');
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 
 // Render Port Fix
 const app = express();
@@ -17,6 +19,18 @@ const API_KEY = process.env.API_KEY || "51b038a045ef49e2dffbd6afb924efc9";
 const users = {};
 
 async function startBot() {
+    const authFolder = path.join(__dirname, 'auth_info_baileys');
+    
+    // Auto Clean Invalid Session Files on Startup
+    if (fs.existsSync(authFolder)) {
+        try {
+            const files = fs.readdirSync(authFolder);
+            if (files.length > 0 && !fs.existsSync(path.join(authFolder, 'creds.json'))) {
+                fs.rmSync(authFolder, { recursive: true, force: true });
+            }
+        } catch (e) {}
+    }
+
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
     const { version } = await fetchLatestBaileysVersion();
 
@@ -26,8 +40,9 @@ async function startBot() {
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
         browser: ["Ubuntu", "Chrome", "20.0.04"],
-        connectTimeoutMs: 60000,
-        keepAliveIntervalMs: 10000
+        connectTimeoutMs: 120000,
+        defaultQueryTimeoutMs: undefined,
+        keepAliveIntervalMs: 30000
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -43,7 +58,7 @@ async function startBot() {
             } catch (err) {
                 console.log(" Pairing Code error...", err);
             }
-        }, 2000);
+        }, 3000);
     }
 
     sock.ev.on('connection.update', (update) => {
@@ -55,7 +70,7 @@ async function startBot() {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             if (shouldReconnect) {
-                setTimeout(startBot, 3000);
+                setTimeout(startBot, 5000);
             }
         }
     });
