@@ -2,6 +2,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 const pino = require('pino');
 const axios = require('axios');
 const express = require('express');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -18,6 +19,16 @@ const users = {};
 let isPairingRequested = false;
 
 async function startBot() {
+    // পুরোনো সেশন বা ক্যাশ ফাইল থাকলে তা স্বয়ংক্রিয়ভাবে মুছে ফ্রেশ করে নেওয়া
+    if (fs.existsSync('./auth_info_baileys')) {
+        try {
+            fs.rmSync('./auth_info_baileys', { recursive: true, force: true });
+            console.log("🔄 পুরোনো সেশন স্বয়ংক্রিয়ভাবে মুছে ফেলা হয়েছে!");
+        } catch (e) {
+            console.log("Session clear error:", e);
+        }
+    }
+
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
     const { version } = await fetchLatestBaileysVersion();
 
@@ -33,7 +44,6 @@ async function startBot() {
 
     if (!sock.authState.creds.registered && !isPairingRequested) {
         isPairingRequested = true;
-        // সার্ভার পুরোপুরি লাইভ হওয়ার জন্য ১৫ সেকেন্ড সময় দেওয়া হলো যাতে রিস্টার্ট লুপ না ধরে
         setTimeout(async () => {
             try {
                 let code = await sock.requestPairingCode(PHONE_NUMBER.replace(/[^0-9]/g, ''));
