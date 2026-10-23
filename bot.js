@@ -2,6 +2,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 const pino = require('pino');
 const axios = require('axios');
 const express = require('express');
+const htmlPdfNode = require('html-pdf-node');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -16,6 +17,17 @@ app.listen(PORT, '0.0.0.0', () => console.log(`Server is running on port ${PORT}
 
 const users = {};
 let isPairingRequested = false;
+
+// এপিআই-এর অরিজিনাল HTML কে নিখুঁত সার্ভার কপি PDF-এ রূপান্তর করার ফাংশন
+async function convertHtmlToOriginalPdf(htmlString) {
+    const file = { content: htmlString };
+    const options = { 
+        format: 'A4', 
+        printBackground: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    };
+    return await htmlPdfNode.generatePdf(file, options);
+}
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -92,9 +104,9 @@ async function startBot() {
 
                 if (!isNaN(amount)) {
                     users[targetUser].tokens = amount;
-                    await sock.sendMessage(sender, { text: `✅ টোকেন সেট করা হয়েছে: ${amount}` });
+                    await sock.sendMessage(sender, { text: `✅ টোকেন সেট করা হয়েছে: ${amount}` });
                     if (targetUser !== sender) {
-                        await sock.sendMessage(targetUser, { text: `🎉 আপনার অ্যাকাউন্টে ${amount} টি টোকেন যুক্ত হয়েছে!` });
+                        await sock.sendMessage(targetUser, { text: `🎉 আপনার অ্যাকাউন্টে ${amount} টি টোকেন যুক্ত হয়েছে!` });
                     }
                 }
                 return;
@@ -107,7 +119,7 @@ async function startBot() {
             } else if (cleanText.includes('nid') || cleanText.includes('এনআইডি')) {
                 if (user.tokens <= 0) {
                     await sock.sendMessage(sender, { 
-                        text: `⚠️ *আপনার অ্যাকাউন্টে কোনো টোকেন নেই!*\n\nটোকেন রিচার্জ করতে বিকাশ সেন্ড মানি করুন:\n📱 *বিকাশ (Send Money):* ${BKASH_NUMBER}\n\nটাকা পাঠানোর পর Trnx ID এবং কত টাকা পাঠিয়েছেন তা এখানে মেসেজ করুন।` 
+                        text: `⚠️ *আপনার অ্যাকাউন্টে কোনো টোকেন নেই!*\n\nটোকেন রিচার্জ করতে বিকাশ সেন্ড মানি করুন:\n📱 *বিকাশ (Send Money):* ${BKASH_NUMBER}\n\nটাকা পাঠানোর পর Trnx ID এবং কত টাকা পাঠিয়েছেন তা এখানে মেসেজ করুন।` 
                     });
                     return;
                 }
@@ -122,10 +134,10 @@ async function startBot() {
                 }
 
                 user.tokens -= 1;
-                await sock.sendMessage(sender, { text: `⏳ মূল সার্ভার থেকে অরিজিনাল PDF সংগ্রহ করা হচ্ছে... (অবশিষ্ট টোকেন: ${user.tokens})` });
+                await sock.sendMessage(sender, { text: `⏳ অরিজিনাল সার্ভার কপি তৈরি করা হচ্ছে... (অবশিষ্ট টোকেন: ${user.tokens})` });
 
                 try {
-                    // ১. প্রথমে এপিআই থেকে ডাটা চেক করা
+                    // ১. API থেকে তথ্য চেক
                     const apiUrl = `https://virtual-suport.com/sv.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
                     const response = await axios.get(apiUrl);
                     const resData = response.data;
@@ -133,23 +145,41 @@ async function startBot() {
                     if (resData && resData.success && resData['data-Info']) {
                         const info = resData['data-Info'];
                         
-                        // ২. সরাসরি মূল সার্ভার থেকে অরিজিনাল PDF বা প্রিন্ট কপি বাইনারি হিসেবে ফেচ করা
-                        const pdfUrl = `https://virtual-suport.com/nid.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
-                        const pdfResponse = await axios.get(pdfUrl, { responseType: 'arraybuffer' });
-                        const originalPdfBuffer = Buffer.from(pdfResponse.data);
+                        // ২. মূল সার্ভার থেকে অরিজিনাল HTML ডিজাইন পেজটি নিয়ে আসা
+                        const targetUrl = `https://virtual-suport.com/nid.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
+                        const htmlResponse = await axios.get(targetUrl, { responseType: 'text' });
+                        
+                        // ৩. HTML পেজটিকে অবিকল অরিজিনাল সার্ভার কপি PDF ফাইলে রূপান্তর
+                        const originalPdfBuffer = await convertHtmlToOriginalPdf(htmlResponse.data);
 
-                        // ৩. সংক্ষিপ্ত টেক্সট মেসেজ পাঠানো
-                        const replyText = `✅ *এনআইডি সার্ভার কপি পাওয়া গেছে!*\n\n` +
-                            `👤 *নাম (বাংলা):* ${info.nameBangla}\n` +
-                            `👤 *নাম (ইংরেজি):* ${info.nameEnglish}\n` +
-                            `🆔 *জাতীয় পরিচয়পত্র নং:* ${info.nationalId}\n` +
-                            `📅 *জন্ম তারিখ:* ${info.dateOfBirth}\n` +
-                            `👨‍👦 *পিতার নাম:* ${info.fatherName}\n` +
-                            `👩‍👦 *মাতার নাম:* ${info.motherName}`;
+                        // ৪. ঠিকানা ও টেক্সট সাজানো
+                        const preAddr = typeof info.preAddress === 'object' ? (info.preAddress?.addressLine || Object.values(info.preAddress || {}).filter(Boolean).join(', ')) : (info.preAddress || 'N/A');
+                        const perAddr = typeof info.perAddress === 'object' ? (info.perAddress?.addressLine || Object.values(info.perAddress || {}).filter(Boolean).join(', ')) : (info.perAddress || 'N/A');
 
-                        await sock.sendMessage(sender, { text: replyText });
+                        const replyText = `✅ *এনআইডি সার্ভার কপি পাওয়া গেছে!*\n\n` +
+                            `👤 *নাম (বাংলা):* ${info.nameBangla || 'N/A'}\n` +
+                            `👤 *নাম (ইংরেজি):* ${info.nameEnglish || 'N/A'}\n` +
+                            `🆔 *জাতীয় পরিচয়পত্র নং:* ${info.nationalId || nidNumber}\n` +
+                            `📌 *পিন নং:* ${info.pin || 'N/A'}\n` +
+                            `📅 *জন্ম তারিখ:* ${info.dateOfBirth || dob}\n` +
+                            `♂️ *লিঙ্গ:* ${info.gender || 'N/A'}\n` +
+                            `🩸 *রক্তের গ্রুপ:* ${info.bloodGroup || 'N/A'}\n` +
+                            `👨‍👦 *পিতার নাম:* ${info.fatherName || 'N/A'}\n` +
+                            `👩‍👦 *মাতার নাম:* ${info.motherName || 'N/A'}\n` +
+                            `🏠 *বর্তমান ঠিকানা:* ${preAddr}\n` +
+                            `🏠 *স্থায়ী ঠিকানা:* ${perAddr}`;
 
-                        // ৪. মূল সার্ভারের একদম অরিজিনাল PDF ফাইল হোয়াটসঅ্যাপে পাঠানো
+                        // ৫. ছবিসহ টেক্সট পাঠানো
+                        if (info.photo) {
+                            await sock.sendMessage(sender, { 
+                                image: { url: info.photo }, 
+                                caption: replyText 
+                            });
+                        } else {
+                            await sock.sendMessage(sender, { text: replyText });
+                        }
+
+                        // ৬. একদম আসল অরিজিনাল সার্ভার কপি PDF ফাইল হোয়াটসঅ্যাপ চ্যাটে পাঠানো
                         await sock.sendMessage(sender, {
                             document: originalPdfBuffer,
                             mimetype: 'application/pdf',
@@ -157,10 +187,11 @@ async function startBot() {
                         });
 
                     } else {
-                        await sock.sendMessage(sender, { text: '⚠️ দুঃখিত, এই NID এবং জন্ম তারিখ দিয়ে কোনো তথ্য পাওয়া যায়নি।' });
+                        await sock.sendMessage(sender, { text: '⚠️ দুঃখিত, এই NID এবং জন্ম তারিখ দিয়ে কোনো তথ্য পাওয়া যায়নি।' });
                     }
                 } catch (error) {
-                    await sock.sendMessage(sender, { text: '⚠️ সার্ভার থেকে PDF ডাউনলোড করতে সমস্যা হয়েছে।' });
+                    console.error("PDF Convert Error:", error);
+                    await sock.sendMessage(sender, { text: '⚠️ অরিজিনাল সার্ভার কপি PDF তৈরিতে সমস্যা হয়েছে। আবার চেষ্টা করুন।' });
                 }
             }
         }
