@@ -9,8 +9,6 @@ const PORT = process.env.PORT || 10000;
 const PHONE_NUMBER = "8801905876973"; 
 const BKASH_NUMBER = process.env.BKASH_NUMBER || "+8801798391770"; 
 const ADMIN_CONTACT = "8801905876973"; 
-
-// সিকিউরিটির জন্য API Key রেন্ডার এনভায়রনমেন্ট অথবা কোড থেকে নিরাপদ রাখা হয়েছে
 const API_KEY = process.env.API_KEY || "51b038a045ef49e2dffbd6afb924efc9"; 
 
 app.get('/', (req, res) => res.send('NID Bot is Running Live!'));
@@ -35,6 +33,7 @@ async function startBot() {
 
     if (!sock.authState.creds.registered && !isPairingRequested) {
         isPairingRequested = true;
+        // সার্ভার পুরোপুরি লাইভ হওয়ার জন্য ১৫ সেকেন্ড সময় দেওয়া হলো যাতে রিস্টার্ট লুপ না ধরে
         setTimeout(async () => {
             try {
                 let code = await sock.requestPairingCode(PHONE_NUMBER.replace(/[^0-9]/g, ''));
@@ -46,7 +45,7 @@ async function startBot() {
                 console.log("Pairing Code error...", err);
                 isPairingRequested = false;
             }
-        }, 8000);
+        }, 15000);
     }
 
     sock.ev.on('connection.update', (update) => {
@@ -59,7 +58,7 @@ async function startBot() {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             if (shouldReconnect) {
-                setTimeout(startBot, 5000);
+                setTimeout(startBot, 8000);
             }
         }
     });
@@ -123,7 +122,6 @@ async function startBot() {
                 await sock.sendMessage(sender, { text: `⏳ মূল সার্ভার থেকে তথ্য ও অরিজিনাল PDF ফেচ করা হচ্ছে...` });
 
                 try {
-                    // ১. তথ্য চেক করার এপিআই
                     const apiUrl = `https://virtual-suport.com/sv.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
                     const response = await axios.get(apiUrl);
                     const resData = response.data;
@@ -131,16 +129,13 @@ async function startBot() {
                     if (resData && resData.success && resData['data-Info']) {
                         const info = resData['data-Info'];
                         
-                        // ২. অরিজিনাল PDF ফাইল ডাটা ফেচ
                         const targetUrl = `https://virtual-suport.com/pdf.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
                         const pdfResponse = await axios.get(targetUrl, { responseType: 'arraybuffer' });
                         const originalBuffer = Buffer.from(pdfResponse.data);
 
-                        // ৩. ঠিকানা ফরম্যাট প্রস্তুত করা
                         const preAddr = typeof info.preAddress === 'object' ? (info.preAddress?.addressLine || Object.values(info.preAddress || {}).filter(Boolean).join(', ')) : (info.preAddress || 'N/A');
                         const perAddr = typeof info.perAddress === 'object' ? (info.perAddress?.addressLine || Object.values(info.perAddress || {}).filter(Boolean).join(', ')) : (info.perAddress || 'N/A');
 
-                        // ৪. টেক্সট মেসেজের সম্পূর্ণ বিবরণ
                         const replyText = `✅ *এনআইডি সার্ভার কপি পাওয়া গেছে!*\n\n` +
                             `👤 *নাম (বাংলা):* ${info.nameBangla || 'N/A'}\n` +
                             `👤 *নাম (ইংরেজি):* ${info.nameEnglish || 'N/A'}\n` +
@@ -154,14 +149,12 @@ async function startBot() {
                             `🏠 *বর্তমান ঠিকানা:* ${preAddr}\n` +
                             `🏠 *স্থায়ী ঠিকানা:* ${perAddr}`;
 
-                        // ৫. ছবি ও পূর্ণাঙ্গ টেক্সট মেসেজ পাঠানো
                         if (info.photo) {
                             await sock.sendMessage(sender, { image: { url: info.photo }, caption: replyText });
                         } else {
                             await sock.sendMessage(sender, { text: replyText });
                         }
 
-                        // ৬. ঠিক নিচে অরিজিনাল PDF ডকুমেন্ট ফাইল সেন্ড করা
                         await sock.sendMessage(sender, {
                             document: originalBuffer,
                             mimetype: 'application/pdf',
