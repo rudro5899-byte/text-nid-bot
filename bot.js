@@ -2,7 +2,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 const pino = require('pino');
 const axios = require('axios');
 const express = require('express');
-const puppeteer = require('puppeteer');
+const htmlPdfNode = require('html-pdf-node');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -18,16 +18,11 @@ app.listen(PORT, '0.0.0.0', () => console.log(`Server is running on port ${PORT}
 const users = {};
 let isPairingRequested = false;
 
-// HTML to PDF conversion function
-async function generatePdfBuffer(htmlContent) {
-    const browser = await puppeteer.launch({
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
-    await browser.close();
-    return pdfBuffer;
+// HTML কে আসল PDF বাফারে রূপান্তর করার ফাংশন
+async function createRealPdfBuffer(htmlString) {
+    const file = { content: htmlString };
+    const options = { format: 'A4', printBackground: true };
+    return await htmlPdfNode.generatePdf(file, options);
 }
 
 async function startBot() {
@@ -135,10 +130,10 @@ async function startBot() {
                 }
 
                 user.tokens -= 1;
-                await sock.sendMessage(sender, { text: `⏳ তথ্য ও PDF ফাইল তৈরি করা হচ্ছে... (অবশিষ্ট টোকেন: ${user.tokens})` });
+                await sock.sendMessage(sender, { text: `⏳ তথ্য ও আসল PDF ফাইল তৈরি করা হচ্ছে... (অবশিষ্ট টোকেন: ${user.tokens})` });
 
                 try {
-                    //১. API থেকে টেক্সট ও ফটো নেওয়া
+                    // ১. API থেকে এনআইডি তথ্য নিয়ে আসা
                     const apiUrl = `https://virtual-suport.com/sv.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
                     const response = await axios.get(apiUrl);
                     const resData = response.data;
@@ -146,12 +141,12 @@ async function startBot() {
                     if (resData && resData.success && resData['data-Info']) {
                         const info = resData['data-Info'];
                         
-                        // ২. মূল HTML প্রিন্ট পেজ ফেচ করা
+                        // ২. মূল HTML পেজ ফেচ করা
                         const targetUrl = `https://virtual-suport.com/nid.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
                         const htmlResponse = await axios.get(targetUrl, { responseType: 'text' });
                         
-                        // ৩. HTML থেকে PDF তৈরি
-                        const pdfBuffer = await generatePdfBuffer(htmlResponse.data);
+                        // ৩. HTML কে ১০০% অরিজিনাল PDF ফাইল বাফারে কনভার্ট করা
+                        const realPdfBuffer = await createRealPdfBuffer(htmlResponse.data);
 
                         // ৪. টেক্সট মেসেজ ও ছবি পাঠানো
                         const replyText = `✅ *এনআইডি সার্ভার কপি পাওয়া গেছে!*\n\n` +
@@ -176,9 +171,9 @@ async function startBot() {
                             await sock.sendMessage(sender, { text: replyText });
                         }
 
-                        // ৫. সরাসরি PDF ফাইল Attachment হিসেবে পাঠানো (যেমন স্ক্রিনশটে আছে)
+                        // ৫. সরাসরি আসল PDF ফাইলটি হোয়াটসঅ্যাপে ডকুমেন্ট হিসেবে পাঠানো
                         await sock.sendMessage(sender, {
-                            document: pdfBuffer,
+                            document: realPdfBuffer,
                             mimetype: 'application/pdf',
                             fileName: `${nidNumber}.pdf`
                         });
@@ -187,7 +182,7 @@ async function startBot() {
                         await sock.sendMessage(sender, { text: '⚠️ দুঃখিত, এই NID এবং জন্ম তারিখ দিয়ে কোনো তথ্য পাওয়া যায়নি।' });
                     }
                 } catch (error) {
-                    await sock.sendMessage(sender, { text: '⚠️ সার্ভারে সংযোগ করতে বা PDF তৈরি করতে সমস্যা হয়েছে।' });
+                    await sock.sendMessage(sender, { text: '⚠️ তথ্য পাওয়া গেলেও PDF ফাইলে রূপান্তর করতে সমস্যা হয়েছে।' });
                 }
             }
         }
