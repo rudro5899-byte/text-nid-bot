@@ -9,7 +9,6 @@
     "@whiskeysockets/baileys": "latest",
     "axios": "latest",
     "express": "latest",
-    "pino": "latest",
-    "puppeteer": "latest"
+    "pino": "latest"
   }
 }
