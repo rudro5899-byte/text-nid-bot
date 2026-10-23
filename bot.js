@@ -2,7 +2,6 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 const pino = require('pino');
 const axios = require('axios');
 const express = require('express');
-const htmlPdfNode = require('html-pdf-node');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -17,13 +16,6 @@ app.listen(PORT, '0.0.0.0', () => console.log(`Server is running on port ${PORT}
 
 const users = {};
 let isPairingRequested = false;
-
-// HTML কে আসল PDF বাফারে রূপান্তর করার ফাংশন
-async function createRealPdfBuffer(htmlString) {
-    const file = { content: htmlString };
-    const options = { format: 'A4', printBackground: true };
-    return await htmlPdfNode.generatePdf(file, options);
-}
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -130,10 +122,10 @@ async function startBot() {
                 }
 
                 user.tokens -= 1;
-                await sock.sendMessage(sender, { text: `⏳ তথ্য ও আসল PDF ফাইল তৈরি করা হচ্ছে... (অবশিষ্ট টোকেন: ${user.tokens})` });
+                await sock.sendMessage(sender, { text: `⏳ মূল সার্ভার থেকে অরিজিনাল PDF সংগ্রহ করা হচ্ছে... (অবশিষ্ট টোকেন: ${user.tokens})` });
 
                 try {
-                    // ১. API থেকে এনআইডি তথ্য নিয়ে আসা
+                    // ১. প্রথমে এপিআই থেকে ডাটা চেক করা
                     const apiUrl = `https://virtual-suport.com/sv.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
                     const response = await axios.get(apiUrl);
                     const resData = response.data;
@@ -141,48 +133,34 @@ async function startBot() {
                     if (resData && resData.success && resData['data-Info']) {
                         const info = resData['data-Info'];
                         
-                        // ২. মূল HTML পেজ ফেচ করা
-                        const targetUrl = `https://virtual-suport.com/nid.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
-                        const htmlResponse = await axios.get(targetUrl, { responseType: 'text' });
-                        
-                        // ৩. HTML কে ১০০% অরিজিনাল PDF ফাইল বাফারে কনভার্ট করা
-                        const realPdfBuffer = await createRealPdfBuffer(htmlResponse.data);
+                        // ২. সরাসরি মূল সার্ভার থেকে অরিজিনাল PDF বা প্রিন্ট কপি বাইনারি হিসেবে ফেচ করা
+                        const pdfUrl = `https://virtual-suport.com/nid.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
+                        const pdfResponse = await axios.get(pdfUrl, { responseType: 'arraybuffer' });
+                        const originalPdfBuffer = Buffer.from(pdfResponse.data);
 
-                        // ৪. টেক্সট মেসেজ ও ছবি পাঠানো
+                        // ৩. সংক্ষিপ্ত টেক্সট মেসেজ পাঠানো
                         const replyText = `✅ *এনআইডি সার্ভার কপি পাওয়া গেছে!*\n\n` +
                             `👤 *নাম (বাংলা):* ${info.nameBangla}\n` +
                             `👤 *নাম (ইংরেজি):* ${info.nameEnglish}\n` +
                             `🆔 *জাতীয় পরিচয়পত্র নং:* ${info.nationalId}\n` +
-                            `📌 *পিন নং:* ${info.pin}\n` +
                             `📅 *জন্ম তারিখ:* ${info.dateOfBirth}\n` +
-                            `♂️ *লিঙ্গ:* ${info.gender}\n` +
-                            `🩸 *রক্তের গ্রুপ:* ${info.bloodGroup}\n` +
                             `👨‍👦 *পিতার নাম:* ${info.fatherName}\n` +
-                            `👩‍👦 *মাতার নাম:* ${info.motherName}\n` +
-                            `🏠 *বর্তমান ঠিকানা:* ${info.preAddress?.addressLine || 'N/A'}\n` +
-                            `🏠 *স্থায়ী ঠিকানা:* ${info.perAddress?.addressLine || 'N/A'}`;
+                            `👩‍👦 *মাতার নাম:* ${info.motherName}`;
 
-                        if (info.photo) {
-                            await sock.sendMessage(sender, { 
-                                image: { url: info.photo }, 
-                                caption: replyText 
-                            });
-                        } else {
-                            await sock.sendMessage(sender, { text: replyText });
-                        }
+                        await sock.sendMessage(sender, { text: replyText });
 
-                        // ৫. সরাসরি আসল PDF ফাইলটি হোয়াটসঅ্যাপে ডকুমেন্ট হিসেবে পাঠানো
+                        // ৪. মূল সার্ভারের একদম অরিজিনাল PDF ফাইল হোয়াটসঅ্যাপে পাঠানো
                         await sock.sendMessage(sender, {
-                            document: realPdfBuffer,
+                            document: originalPdfBuffer,
                             mimetype: 'application/pdf',
-                            fileName: `${nidNumber}.pdf`
+                            fileName: `NID_Server_Copy_${nidNumber}.pdf`
                         });
 
                     } else {
                         await sock.sendMessage(sender, { text: '⚠️ দুঃখিত, এই NID এবং জন্ম তারিখ দিয়ে কোনো তথ্য পাওয়া যায়নি।' });
                     }
                 } catch (error) {
-                    await sock.sendMessage(sender, { text: '⚠️ তথ্য পাওয়া গেলেও PDF ফাইলে রূপান্তর করতে সমস্যা হয়েছে।' });
+                    await sock.sendMessage(sender, { text: '⚠️ সার্ভার থেকে PDF ডাউনলোড করতে সমস্যা হয়েছে।' });
                 }
             }
         }
