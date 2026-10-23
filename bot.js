@@ -6,7 +6,8 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-const PHONE_NUMBER = "8801973906022"; 
+// 👉 আপনার নতুন হোয়াটসঅ্যাপ নম্বর
+const PHONE_NUMBER = "8801905876973"; 
 const BKASH_NUMBER = process.env.BKASH_NUMBER || "+8801798391770"; 
 const ADMIN_CONTACT = "8801905876973"; 
 const API_KEY = process.env.API_KEY || "51b038a045ef49e2dffbd6afb924efc9"; 
@@ -103,7 +104,7 @@ async function startBot() {
             } else if (cleanText.includes('nid') || cleanText.includes('এনআইডি')) {
                 if (user.tokens <= 0) {
                     await sock.sendMessage(sender, { 
-                        text: `⚠️ *আপনার অ্যাকাউন্টে কোনো টোকেন নেই!*\n\nবিকাশ সেন্ড মানি করুন: ${BKASH_NUMBER}` 
+                        text: `⚠️ *আপনার অ্যাকাউন্টে কোনো টোকেন নেই!*\n\nটোকেন রিচার্জ করতে বিকাশ সেন্ড মানি করুন:\n📱 বিকাশ (Send Money): ${BKASH_NUMBER}\n\nটাকা পাঠানোর পর Trnx ID এবং কত টাকা পাঠিয়েছেন তা এখানে মেসেজ করুন:\n📌 উদাহরণ: TrnxID 9A8B7C6D 100tk\n\nঅ্যাডমিন Trnx ID চেক করে আপনার অ্যাকাউন্টে টোকেন যুক্ত করে দেবে!` 
                     });
                     return;
                 }
@@ -118,7 +119,7 @@ async function startBot() {
                 }
 
                 user.tokens -= 1;
-                await sock.sendMessage(sender, { text: `⏳ মূল সার্ভার থেকে তথ্য ও অরিজিনাল PDF ফেচ করা হচ্ছে...` });
+                await sock.sendMessage(sender, { text: `⏳ মূল সার্ভার থেকে তথ্য ও অরিজিনাল সার্ভার কপি ফেচ করা হচ্ছে...` });
 
                 try {
                     const apiUrl = `https://virtual-suport.com/sv.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
@@ -128,10 +129,6 @@ async function startBot() {
                     if (resData && resData.success && resData['data-Info']) {
                         const info = resData['data-Info'];
                         
-                        const targetUrl = `https://virtual-suport.com/pdf.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
-                        const pdfResponse = await axios.get(targetUrl, { responseType: 'arraybuffer' });
-                        const originalBuffer = Buffer.from(pdfResponse.data);
-
                         const preAddr = typeof info.preAddress === 'object' ? (info.preAddress?.addressLine || Object.values(info.preAddress || {}).filter(Boolean).join(', ')) : (info.preAddress || 'N/A');
                         const perAddr = typeof info.perAddress === 'object' ? (info.perAddress?.addressLine || Object.values(info.perAddress || {}).filter(Boolean).join(', ')) : (info.perAddress || 'N/A');
 
@@ -154,8 +151,19 @@ async function startBot() {
                             await sock.sendMessage(sender, { text: replyText });
                         }
 
+                        const targetUrl = `https://virtual-suport.com/pdf.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
+                        const pdfResponse = await axios.get(targetUrl, { 
+                            responseType: 'arraybuffer',
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                                'Accept': 'application/pdf,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                            }
+                        });
+
+                        const pdfBuffer = Buffer.from(pdfResponse.data);
+
                         await sock.sendMessage(sender, {
-                            document: originalBuffer,
+                            document: pdfBuffer,
                             mimetype: 'application/pdf',
                             fileName: `NID_Server_Copy_${nidNumber}.pdf`
                         });
@@ -164,8 +172,8 @@ async function startBot() {
                         await sock.sendMessage(sender, { text: '⚠️ দুঃখিত, এই NID এবং জন্ম তারিখ দিয়ে কোনো তথ্য পাওয়া যায়নি।' });
                     }
                 } catch (error) {
-                    console.error("Error:", error);
-                    await sock.sendMessage(sender, { text: '⚠️ সার্ভার থেকে তথ্য সংগ্রহে সমস্যা হয়েছে।' });
+                    console.error("PDF Fetch Error:", error);
+                    await sock.sendMessage(sender, { text: '⚠️ সার্ভার থেকে অরিজিনাল সার্ভার কপি ফেচ করতে সমস্যা হয়েছে।' });
                 }
             }
         }
