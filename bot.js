@@ -2,6 +2,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 const pino = require('pino');
 const axios = require('axios');
 const express = require('express');
+const puppeteer = require('puppeteer');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -11,35 +12,23 @@ const BKASH_NUMBER = process.env.BKASH_NUMBER || "+8801798391770";
 const ADMIN_CONTACT = "8801905876973"; 
 const API_KEY = process.env.API_KEY || "51b038a045ef49e2dffbd6afb924efc9"; 
 
-// Render Domain
-const BOT_SERVER_URL = "https://text-nid-bot.onrender.com";
-
 app.get('/', (req, res) => res.send('NID Bot is Running Live!'));
-
-// 🛡️ মেইন সার্ভার সম্পূর্ণ হাইড ও সরাসরি PDF ডাউনলোড রুট
-app.get('/pdf', async (req, res) => {
-    const { nid, dob } = req.query;
-    if (!nid || !dob) {
-        return res.status(400).send("NID and DOB required");
-    }
-    try {
-        const targetUrl = `https://virtual-suport.com/nid.php?key=${API_KEY}&nid=${nid}&dob=${dob}`;
-        
-        const response = await axios.get(targetUrl, { responseType: 'stream' });
-        
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="NID_Server_Copy_${nid}.pdf"`);
-        
-        response.data.pipe(res);
-    } catch (err) {
-        res.status(500).send("Error generating PDF file");
-    }
-});
-
 app.listen(PORT, '0.0.0.0', () => console.log(`Server is running on port ${PORT}`));
 
 const users = {};
 let isPairingRequested = false;
+
+// HTML to PDF conversion function
+async function generatePdfBuffer(htmlContent) {
+    const browser = await puppeteer.launch({
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    const page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
+    await browser.close();
+    return pdfBuffer;
+}
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -146,9 +135,10 @@ async function startBot() {
                 }
 
                 user.tokens -= 1;
-                await sock.sendMessage(sender, { text: `⏳ তথ্য খোঁজা হচ্ছে... (অবশিষ্ট টোকেন: ${user.tokens})` });
+                await sock.sendMessage(sender, { text: `⏳ তথ্য ও PDF ফাইল তৈরি করা হচ্ছে... (অবশিষ্ট টোকেন: ${user.tokens})` });
 
                 try {
+                    //১. API থেকে টেক্সট ও ফটো নেওয়া
                     const apiUrl = `https://virtual-suport.com/sv.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
                     const response = await axios.get(apiUrl);
                     const resData = response.data;
@@ -156,9 +146,14 @@ async function startBot() {
                     if (resData && resData.success && resData['data-Info']) {
                         const info = resData['data-Info'];
                         
-                        // প্রক্সি ডাউনলোড লিংক
-                        const downloadPdfUrl = `${BOT_SERVER_URL}/pdf?nid=${nidNumber}&dob=${dob}`;
+                        // ২. মূল HTML প্রিন্ট পেজ ফেচ করা
+                        const targetUrl = `https://virtual-suport.com/nid.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
+                        const htmlResponse = await axios.get(targetUrl, { responseType: 'text' });
                         
+                        // ৩. HTML থেকে PDF তৈরি
+                        const pdfBuffer = await generatePdfBuffer(htmlResponse.data);
+
+                        // ৪. টেক্সট মেসেজ ও ছবি পাঠানো
                         const replyText = `✅ *এনআইডি সার্ভার কপি পাওয়া গেছে!*\n\n` +
                             `👤 *নাম (বাংলা):* ${info.nameBangla}\n` +
                             `👤 *নাম (ইংরেজি):* ${info.nameEnglish}\n` +
@@ -170,8 +165,7 @@ async function startBot() {
                             `👨‍👦 *পিতার নাম:* ${info.fatherName}\n` +
                             `👩‍👦 *মাতার নাম:* ${info.motherName}\n` +
                             `🏠 *বর্তমান ঠিকানা:* ${info.preAddress?.addressLine || 'N/A'}\n` +
-                            `🏠 *স্থায়ী ঠিকানা:* ${info.perAddress?.addressLine || 'N/A'}\n\n` +
-                            `📥 *পিডিএফ ডাউনলোড করুন:* ${downloadPdfUrl}`;
+                            `🏠 *স্থায়ী ঠিকানা:* ${info.perAddress?.addressLine || 'N/A'}`;
 
                         if (info.photo) {
                             await sock.sendMessage(sender, { 
@@ -182,11 +176,18 @@ async function startBot() {
                             await sock.sendMessage(sender, { text: replyText });
                         }
 
+                        // ৫. সরাসরি PDF ফাইল Attachment হিসেবে পাঠানো (যেমন স্ক্রিনশটে আছে)
+                        await sock.sendMessage(sender, {
+                            document: pdfBuffer,
+                            mimetype: 'application/pdf',
+                            fileName: `${nidNumber}.pdf`
+                        });
+
                     } else {
                         await sock.sendMessage(sender, { text: '⚠️ দুঃখিত, এই NID এবং জন্ম তারিখ দিয়ে কোনো তথ্য পাওয়া যায়নি।' });
                     }
                 } catch (error) {
-                    await sock.sendMessage(sender, { text: '⚠️ সার্ভারে সংযোগ করতে সমস্যা হয়েছে।' });
+                    await sock.sendMessage(sender, { text: '⚠️ সার্ভারে সংযোগ করতে বা PDF তৈরি করতে সমস্যা হয়েছে।' });
                 }
             }
         }
