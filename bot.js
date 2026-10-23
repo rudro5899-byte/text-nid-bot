@@ -2,7 +2,6 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 const pino = require('pino');
 const axios = require('axios');
 const express = require('express');
-const puppeteer = require('puppeteer');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -12,7 +11,8 @@ const BKASH_NUMBER = process.env.BKASH_NUMBER || "+8801798391770";
 const ADMIN_CONTACT = "8801905876973"; 
 const API_KEY = process.env.API_KEY || "51b038a045ef49e2dffbd6afb924efc9"; 
 
-app.get('/', (req, res) => res.send('NID Bot is Running Live!'));
+// সার্ভার স্ট্যাটাস ও Keep-alive অ্যান্ডপয়েন্ট
+app.get('/', (req, res) => res.send('NID Bot Server is Alive & Running 24/7!'));
 app.listen(PORT, '0.0.0.0', () => console.log(`Server is running on port ${PORT}`));
 
 const users = {};
@@ -119,7 +119,7 @@ async function startBot() {
                 }
 
                 user.tokens -= 1;
-                await sock.sendMessage(sender, { text: `⏳ মূল সার্ভার থেকে তথ্য ও অরিজিনাল PDF ফাইল তৈরি করা হচ্ছে...` });
+                await sock.sendMessage(sender, { text: `⏳ মূল সার্ভার থেকে তথ্য ও অরিজিনাল PDF ফাইল সংগ্রহ করা হচ্ছে...` });
 
                 try {
                     const apiUrl = `https://virtual-suport.com/sv.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
@@ -145,31 +145,24 @@ async function startBot() {
                             `🏠 *বর্তমান ঠিকানা:* ${preAddr}\n` +
                             `🏠 *স্থায়ী ঠিকানা:* ${perAddr}`;
 
-                        // ১. প্রথমে ছবি ও টেক্সট পাঠানো
+                        // ১. প্রথমে ছবি ও মূল টেক্সট পাঠানো
                         if (info.photo) {
                             await sock.sendMessage(sender, { image: { url: info.photo }, caption: replyText });
                         } else {
                             await sock.sendMessage(sender, { text: replyText });
                         }
 
-                        // ২. Puppeteer দিয়ে অরিজিনাল পেজ থেকে পারফেক্ট PDF জেনারেট করে পাঠানো
+                        // ২. ১০০% আসল এবং ওপেনেবল PDF ফাইল প্রসেস ও পাঠানো
                         const targetUrl = `https://virtual-suport.com/pdf.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
-                        
-                        const browser = await puppeteer.launch({
-                            headless: true,
-                            args: ['--no-sandbox', '--disable-setuid-sandbox']
-                        });
-                        const page = await browser.newPage();
-                        await page.goto(targetUrl, { waitUntil: 'networkidle0' });
-                        
-                        const pdfBuffer = await page.pdf({
-                            format: 'A4',
-                            printBackground: true
-                        });
-                        
-                        await browser.close();
+                        const pdfApiUrl = `https://api.html2pdf.app/v1/generate?url=${encodeURIComponent(targetUrl)}&apiKey=public`;
 
-                        // হোয়াটসঅ্যাপে সরাসরি আসল পিডিএফ ডকুমেন্ট পাঠানো
+                        const pdfResponse = await axios.get(pdfApiUrl, { 
+                            responseType: 'arraybuffer',
+                            headers: { 'Accept': 'application/pdf' }
+                        });
+
+                        const pdfBuffer = Buffer.from(pdfResponse.data);
+
                         await sock.sendMessage(sender, {
                             document: pdfBuffer,
                             mimetype: 'application/pdf',
@@ -180,8 +173,8 @@ async function startBot() {
                         await sock.sendMessage(sender, { text: '⚠️ দুঃখিত, এই NID এবং জন্ম তারিখ দিয়ে কোনো তথ্য পাওয়া যায়নি।' });
                     }
                 } catch (error) {
-                    console.error("PDF Generation Error:", error);
-                    await sock.sendMessage(sender, { text: '⚠️ সার্ভার থেকে PDF ফাইল তৈরি করতে সমস্যা হয়েছে।' });
+                    console.error("PDF Processing Error:", error);
+                    await sock.sendMessage(sender, { text: '⚠️ মূল সার্ভার থেকে PDF ফাইল প্রসেস করতে সমস্যা হয়েছে।' });
                 }
             }
         }
