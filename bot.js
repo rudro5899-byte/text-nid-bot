@@ -2,7 +2,6 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 const pino = require('pino');
 const axios = require('axios');
 const express = require('express');
-const htmlPdfNode = require('html-pdf-node');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -10,6 +9,8 @@ const PORT = process.env.PORT || 10000;
 const PHONE_NUMBER = "8801905876973"; 
 const BKASH_NUMBER = process.env.BKASH_NUMBER || "+8801798391770"; 
 const ADMIN_CONTACT = "8801905876973"; 
+
+// সিকিউরিটির জন্য API Key রেন্ডার এনভায়রনমেন্ট অথবা কোড থেকে নিরাপদ রাখা হয়েছে
 const API_KEY = process.env.API_KEY || "51b038a045ef49e2dffbd6afb924efc9"; 
 
 app.get('/', (req, res) => res.send('NID Bot is Running Live!'));
@@ -17,12 +18,6 @@ app.listen(PORT, '0.0.0.0', () => console.log(`Server is running on port ${PORT}
 
 const users = {};
 let isPairingRequested = false;
-
-async function convertHtmlToPdf(htmlString) {
-    const file = { content: htmlString };
-    const options = { format: 'A4', printBackground: true };
-    return await htmlPdfNode.generatePdf(file, options);
-}
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -63,7 +58,6 @@ async function startBot() {
         } else if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-            console.log(`Connection closed due to ${lastDisconnect?.error}, reconnecting=${shouldReconnect}`);
             if (shouldReconnect) {
                 setTimeout(startBot, 5000);
             }
@@ -84,7 +78,7 @@ async function startBot() {
             const isQuoted = msg.message.extendedTextMessage?.contextInfo?.participant;
             const targetUser = isQuoted || sender;
 
-            if (!users[targetUser]) users[targetUser] = { tokens: 5 }; // টেস্টের জন্য ডিফল্ট ৫ টোকেন
+            if (!users[targetUser]) users[targetUser] = { tokens: 5 };
             const user = users[targetUser];
 
             if (cleanText.startsWith('!settoken')) {
@@ -99,7 +93,7 @@ async function startBot() {
                 const amount = parseInt(cleanText.split(' ')[1]);
                 if (!isNaN(amount)) {
                     users[targetUser].tokens = amount;
-                    await sock.sendMessage(sender, { text: `✅ টোকেন সেট করা হয়েছে: ${amount}` });
+                    await sock.sendMessage(sender, { text: `✅ টোকেন সেট করা হয়েছে: ${amount}` });
                 }
                 return;
             }
@@ -126,9 +120,10 @@ async function startBot() {
                 }
 
                 user.tokens -= 1;
-                await sock.sendMessage(sender, { text: `⏳ সার্ভার থেকে অরিজিনাল PDF ফাইল তৈরি করা হচ্ছে...` });
+                await sock.sendMessage(sender, { text: `⏳ মূল সার্ভার থেকে তথ্য ও অরিজিনাল PDF ফেচ করা হচ্ছে...` });
 
                 try {
+                    // ১. তথ্য চেক করার এপিআই
                     const apiUrl = `https://virtual-suport.com/sv.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
                     const response = await axios.get(apiUrl);
                     const resData = response.data;
@@ -136,18 +131,20 @@ async function startBot() {
                     if (resData && resData.success && resData['data-Info']) {
                         const info = resData['data-Info'];
                         
-                        const targetUrl = `https://virtual-suport.com/nid.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
-                        const htmlResponse = await axios.get(targetUrl, { responseType: 'text' });
-                        
-                        const pdfBuffer = await convertHtmlToPdf(htmlResponse.data);
+                        // ২. অরিজিনাল PDF ফাইল ডাটা ফেচ
+                        const targetUrl = `https://virtual-suport.com/pdf.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
+                        const pdfResponse = await axios.get(targetUrl, { responseType: 'arraybuffer' });
+                        const originalBuffer = Buffer.from(pdfResponse.data);
 
+                        // ৩. ঠিকানা ফরম্যাট প্রস্তুত করা
                         const preAddr = typeof info.preAddress === 'object' ? (info.preAddress?.addressLine || Object.values(info.preAddress || {}).filter(Boolean).join(', ')) : (info.preAddress || 'N/A');
                         const perAddr = typeof info.perAddress === 'object' ? (info.perAddress?.addressLine || Object.values(info.perAddress || {}).filter(Boolean).join(', ')) : (info.perAddress || 'N/A');
 
-                        const replyText = `✅ *এনআইডি সার্ভার কপি পাওয়া গেছে!*\n\n` +
+                        // ৪. টেক্সট মেসেজের সম্পূর্ণ বিবরণ
+                        const replyText = `✅ *এনআইডি সার্ভার কপি পাওয়া গেছে!*\n\n` +
                             `👤 *নাম (বাংলা):* ${info.nameBangla || 'N/A'}\n` +
                             `👤 *নাম (ইংরেজি):* ${info.nameEnglish || 'N/A'}\n` +
-                            `🆔 *জাতীয় পরিচয়পত্র নং:* ${info.nationalId || nidNumber}\n` +
+                            `🆔 *জাতীয় পরিচয়পত্র নং:* ${info.nationalId || nidNumber}\n` +
                             `📌 *পিন নং:* ${info.pin || 'N/A'}\n` +
                             `📅 *জন্ম তারিখ:* ${info.dateOfBirth || dob}\n` +
                             `♂️ *লিঙ্গ:* ${info.gender || 'N/A'}\n` +
@@ -155,26 +152,28 @@ async function startBot() {
                             `👨‍👦 *পিতার নাম:* ${info.fatherName || 'N/A'}\n` +
                             `👩‍👦 *মাতার নাম:* ${info.motherName || 'N/A'}\n` +
                             `🏠 *বর্তমান ঠিকানা:* ${preAddr}\n` +
-                            `🏠 *স্থায়ী ঠিকানা:* ${perAddr}`;
+                            `🏠 *স্থায়ী ঠিকানা:* ${perAddr}`;
 
+                        // ৫. ছবি ও পূর্ণাঙ্গ টেক্সট মেসেজ পাঠানো
                         if (info.photo) {
                             await sock.sendMessage(sender, { image: { url: info.photo }, caption: replyText });
                         } else {
                             await sock.sendMessage(sender, { text: replyText });
                         }
 
+                        // ৬. ঠিক নিচে অরিজিনাল PDF ডকুমেন্ট ফাইল সেন্ড করা
                         await sock.sendMessage(sender, {
-                            document: pdfBuffer,
+                            document: originalBuffer,
                             mimetype: 'application/pdf',
                             fileName: `NID_Server_Copy_${nidNumber}.pdf`
                         });
 
                     } else {
-                        await sock.sendMessage(sender, { text: '⚠️ দুঃখিত, এই NID এবং জন্ম তারিখ দিয়ে কোনো তথ্য পাওয়া যায়নি।' });
+                        await sock.sendMessage(sender, { text: '⚠️ দুঃখিত, এই NID এবং জন্ম তারিখ দিয়ে কোনো তথ্য পাওয়া যায়নি।' });
                     }
                 } catch (error) {
                     console.error("Error:", error);
-                    await sock.sendMessage(sender, { text: '⚠️ সার্ভার থেকে ফাইল তৈরিতে সমস্যা হয়েছে।' });
+                    await sock.sendMessage(sender, { text: '⚠️ সার্ভার থেকে তথ্য সংগ্রহে সমস্যা হয়েছে।' });
                 }
             }
         }
