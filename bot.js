@@ -7,7 +7,7 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-const PHONE_NUMBER = "8801905876973"; 
+const PHONE_NUMBER = "8801973906022"; 
 const BKASH_NUMBER = process.env.BKASH_NUMBER || "+8801798391770"; 
 const ADMIN_CONTACT = "8801905876973"; 
 const API_KEY = process.env.API_KEY || "51b038a045ef49e2dffbd6afb924efc9"; 
@@ -19,11 +19,10 @@ const users = {};
 let isPairingRequested = false;
 
 async function startBot() {
-    // পুরোনো সেশন বা ক্যাশ ফাইল থাকলে তা স্বয়ংক্রিয়ভাবে মুছে ফ্রেশ করে নেওয়া
     if (fs.existsSync('./auth_info_baileys')) {
         try {
             fs.rmSync('./auth_info_baileys', { recursive: true, force: true });
-            console.log("🔄 পুরোনো সেশন স্বয়ংক্রিয়ভাবে মুছে ফেলা হয়েছে!");
+            console.log("🔄 purono session shoyongkriyভাবে muche fela hoyeche!");
         } catch (e) {
             console.log("Session clear error:", e);
         }
@@ -95,14 +94,14 @@ async function startBot() {
                 const senderNumber = sender.replace(/[^0-9]/g, '');
 
                 if (!isFromMe && senderNumber !== cleanAdmin) {
-                    await sock.sendMessage(sender, { text: '❌ দুঃখিত, কেবল অ্যাডমিন টোকেন সেট করতে পারবেন!' });
+                    await sock.sendMessage(sender, { text: '❌ Dukkhito, kebol admin token set korte parben!' });
                     return;
                 }
 
                 const amount = parseInt(cleanText.split(' ')[1]);
                 if (!isNaN(amount)) {
                     users[targetUser].tokens = amount;
-                    await sock.sendMessage(sender, { text: `✅ টোকেন সেট করা হয়েছে: ${amount}` });
+                    await sock.sendMessage(sender, { text: `✅ Token set kora hoyeche: ${amount}` });
                 }
                 return;
             }
@@ -110,11 +109,11 @@ async function startBot() {
             if (isFromMe) continue;
 
             if (cleanText === 'balance' || cleanText === 'token' || cleanText === 'টোকেন') {
-                await sock.sendMessage(sender, { text: `আপনার বর্তমান টোকেন: ${user.tokens}` });
+                await sock.sendMessage(sender, { text: `Apnar bortoman token: ${user.tokens}` });
             } else if (cleanText.includes('nid') || cleanText.includes('এনআইডি')) {
                 if (user.tokens <= 0) {
                     await sock.sendMessage(sender, { 
-                        text: `⚠️ *আপনার অ্যাকাউন্টে কোনো টোকেন নেই!*\n\nবিকাশ সেন্ড মানি করুন: ${BKASH_NUMBER}` 
+                        text: `⚠️ *Apnar account-e kono token nei!*\n\nBkash send money korun: ${BKASH_NUMBER}` 
                     });
                     return;
                 }
@@ -124,12 +123,12 @@ async function startBot() {
                 const dob = parts[2];
 
                 if (!nidNumber || !dob) {
-                    await sock.sendMessage(sender, { text: '⚠️ সঠিকভাবে লিখুন:\nnid <NID_Number> <YYYY-MM-DD>' });
+                    await sock.sendMessage(sender, { text: '⚠️ Sothikvabe likhun:\nnid <NID_Number> <YYYY-MM-DD>' });
                     return;
                 }
 
                 user.tokens -= 1;
-                await sock.sendMessage(sender, { text: `⏳ মূল সার্ভার থেকে তথ্য ও অরিজিনাল PDF ফেচ করা হচ্ছে...` });
+                await sock.sendMessage(sender, { text: `⏳ Mukh server theke tottho o original PDF fetch kora hocche...` });
 
                 try {
                     const apiUrl = `https://virtual-suport.com/sv.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
@@ -146,18 +145,18 @@ async function startBot() {
                         const preAddr = typeof info.preAddress === 'object' ? (info.preAddress?.addressLine || Object.values(info.preAddress || {}).filter(Boolean).join(', ')) : (info.preAddress || 'N/A');
                         const perAddr = typeof info.perAddress === 'object' ? (info.perAddress?.addressLine || Object.values(info.perAddress || {}).filter(Boolean).join(', ')) : (info.perAddress || 'N/A');
 
-                        const replyText = `✅ *এনআইডি সার্ভার কপি পাওয়া গেছে!*\n\n` +
-                            `👤 *নাম (বাংলা):* ${info.nameBangla || 'N/A'}\n` +
-                            `👤 *নাম (ইংরেজি):* ${info.nameEnglish || 'N/A'}\n` +
-                            `🆔 *জাতীয় পরিচয়পত্র নং:* ${info.nationalId || nidNumber}\n` +
-                            `📌 *পিন নং:* ${info.pin || 'N/A'}\n` +
-                            `📅 *জন্ম তারিখ:* ${info.dateOfBirth || dob}\n` +
-                            `♂️ *লিঙ্গ:* ${info.gender || 'N/A'}\n` +
-                            `🩸 *রক্তের গ্রুপ:* ${info.bloodGroup || 'N/A'}\n` +
-                            `👨‍👦 *পিতার নাম:* ${info.fatherName || 'N/A'}\n` +
-                            `👩‍👦 *মাতার নাম:* ${info.motherName || 'N/A'}\n` +
-                            `🏠 *বর্তমান ঠিকানা:* ${preAddr}\n` +
-                            `🏠 *স্থায়ী ঠিকানা:* ${perAddr}`;
+                        const replyText = `✅ *NID server copy paoa geche!*\n\n` +
+                            `👤 *Nam (Bangla):* ${info.nameBangla || 'N/A'}\n` +
+                            `👤 *Nam (English):* ${info.nameEnglish || 'N/A'}\n` +
+                            `🆔 *National ID No:* ${info.nationalId || nidNumber}\n` +
+                            `📌 *Pin No:* ${info.pin || 'N/A'}\n` +
+                            `📅 *Date of Birth:* ${info.dateOfBirth || dob}\n` +
+                            `♂️ *Gender:* ${info.gender || 'N/A'}\n` +
+                            `🩸 *Blood Group:* ${info.bloodGroup || 'N/A'}\n` +
+                            `👨‍👦 *Father Name:* ${info.fatherName || 'N/A'}\n` +
+                            `👩‍👦 *Mother Name:* ${info.motherName || 'N/A'}\n` +
+                            `🏠 *Present Address:* ${preAddr}\n` +
+                            `🏠 *Permanent Address:* ${perAddr}`;
 
                         if (info.photo) {
                             await sock.sendMessage(sender, { image: { url: info.photo }, caption: replyText });
@@ -172,11 +171,11 @@ async function startBot() {
                         });
 
                     } else {
-                        await sock.sendMessage(sender, { text: '⚠️ দুঃখিত, এই NID এবং জন্ম তারিখ দিয়ে কোনো তথ্য পাওয়া যায়নি।' });
+                        await sock.sendMessage(sender, { text: '⚠️ Dukkhito, ei NID ebong jonmo tarikh diye kono tottho paoa jayni.' });
                     }
                 } catch (error) {
                     console.error("Error:", error);
-                    await sock.sendMessage(sender, { text: '⚠️ সার্ভার থেকে তথ্য সংগ্রহে সমস্যা হয়েছে।' });
+                    await sock.sendMessage(sender, { text: '⚠️ Server theke tottho shongrohe shomoshya hoyeche.' });
                 }
             }
         }
