@@ -16,7 +16,7 @@ const BOT_SERVER_URL = "https://text-nid-bot.onrender.com";
 
 app.get('/', (req, res) => res.send('NID Bot is Running Live!'));
 
-// 🛡️ NO ACCESS TO MAIN SERVER / DIRECT PDF DOWNLOAD ONLY
+// 🛡️ মেইন সার্ভার সম্পূর্ণ হাইড ও সরাসরি PDF ডাউনলোড রুট
 app.get('/pdf', async (req, res) => {
     const { nid, dob } = req.query;
     if (!nid || !dob) {
@@ -25,10 +25,8 @@ app.get('/pdf', async (req, res) => {
     try {
         const targetUrl = `https://virtual-suport.com/nid.php?key=${API_KEY}&nid=${nid}&dob=${dob}`;
         
-        // Backend fetching as arraybuffer stream
         const response = await axios.get(targetUrl, { responseType: 'stream' });
         
-        // Force PDF download header (User kono page dekhbe na, direct download hobe)
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="NID_Server_Copy_${nid}.pdf"`);
         
@@ -110,7 +108,7 @@ async function startBot() {
                 const senderNumber = sender.replace(/[^0-9]/g, '');
 
                 if (!isFromMe && senderNumber !== cleanAdmin) {
-                    await sock.sendMessage(sender, { text: '❌ Dukhito, kebol admin-i token set korte parben!' });
+                    await sock.sendMessage(sender, { text: '❌ দুঃখিত, কেবল অ্যাডমিনই টোকেন সেট করতে পারবেন!' });
                     return;
                 }
 
@@ -118,9 +116,9 @@ async function startBot() {
 
                 if (!isNaN(amount)) {
                     users[targetUser].tokens = amount;
-                    await sock.sendMessage(sender, { text: `✅ Token set kora hoyeche: ${amount}` });
+                    await sock.sendMessage(sender, { text: `✅ টোকেন সেট করা হয়েছে: ${amount}` });
                     if (targetUser !== sender) {
-                        await sock.sendMessage(targetUser, { text: `🎉 Apnar account-e ${amount} ti token yukto hoyeche!` });
+                        await sock.sendMessage(targetUser, { text: `🎉 আপনার অ্যাকাউন্টে ${amount} টি টোকেন যুক্ত হয়েছে!` });
                     }
                 }
                 return;
@@ -129,11 +127,11 @@ async function startBot() {
             if (isFromMe) continue;
 
             if (cleanText === 'balance' || cleanText === 'token' || cleanText === 'টোকেন') {
-                await sock.sendMessage(sender, { text: `Apnar bortoman token: ${user.tokens}` });
+                await sock.sendMessage(sender, { text: `আপনার বর্তমান টোকেন: ${user.tokens}` });
             } else if (cleanText.includes('nid') || cleanText.includes('এনআইডি')) {
                 if (user.tokens <= 0) {
                     await sock.sendMessage(sender, { 
-                        text: `⚠️ Apnar account-e kono token nei!\n\nToken recharge korte bKash Send Money korun:\n📱 bKash (Send Money): ${BKASH_NUMBER}\n\nTaka pathanor por Trnx ID ebong koto taka pathayechen ta ekhane message korun.` 
+                        text: `⚠️ *আপনার অ্যাকাউন্টে কোনো টোকেন নেই!*\n\nটোকেন রিচার্জ করতে বিকাশ সেন্ড মানি করুন:\n📱 *বিকাশ (Send Money):* ${BKASH_NUMBER}\n\nটাকা পাঠানোর পর Trnx ID এবং কত টাকা পাঠিয়েছেন তা এখানে মেসেজ করুন।` 
                     });
                     return;
                 }
@@ -143,12 +141,12 @@ async function startBot() {
                 const dob = parts[2];
 
                 if (!nidNumber || !dob) {
-                    await sock.sendMessage(sender, { text: '⚠️ Sothikbhabe likhun:\nnid <nid_number> <dob>' });
+                    await sock.sendMessage(sender, { text: '⚠️ সঠিকভাবে লিখুন:\nnid <NID_Number> <YYYY-MM-DD>' });
                     return;
                 }
 
                 user.tokens -= 1;
-                await sock.sendMessage(sender, { text: `⏳ Process hocche... (Oboshto token: ${user.tokens})` });
+                await sock.sendMessage(sender, { text: `⏳ তথ্য খোঁজা হচ্ছে... (অবশিষ্ট টোকেন: ${user.tokens})` });
 
                 try {
                     const apiUrl = `https://virtual-suport.com/sv.php?key=${API_KEY}&nid=${nidNumber}&dob=${dob}`;
@@ -158,22 +156,22 @@ async function startBot() {
                     if (resData && resData.success && resData['data-Info']) {
                         const info = resData['data-Info'];
                         
-                        // Direct Download Link
+                        // প্রক্সি ডাউনলোড লিংক
                         const downloadPdfUrl = `${BOT_SERVER_URL}/pdf?nid=${nidNumber}&dob=${dob}`;
                         
-                        const replyText = `✅ *NID Server Copy Found!*\n\n` +
-                            `👤 *Name (Bangla):* ${info.nameBangla}\n` +
-                            `👤 *Name (English):* ${info.nameEnglish}\n` +
-                            `🆔 *NID No:* ${info.nationalId}\n` +
-                            `📌 *PIN No:* ${info.pin}\n` +
-                            `📅 *Date of Birth:* ${info.dateOfBirth}\n` +
-                            `♂️ *Gender:* ${info.gender}\n` +
-                            `🩸 *Blood Group:* ${info.bloodGroup}\n` +
-                            `👨‍👦 *Father:* ${info.fatherName}\n` +
-                            `👩‍👦 *Mother:* ${info.motherName}\n` +
-                            `🏠 *Present Address:* ${info.preAddress?.addressLine || 'N/A'}\n` +
-                            `🏠 *Permanent Address:* ${info.perAddress?.addressLine || 'N/A'}\n\n` +
-                            `📥 *Download PDF:* ${downloadPdfUrl}`;
+                        const replyText = `✅ *এনআইডি সার্ভার কপি পাওয়া গেছে!*\n\n` +
+                            `👤 *নাম (বাংলা):* ${info.nameBangla}\n` +
+                            `👤 *নাম (ইংরেজি):* ${info.nameEnglish}\n` +
+                            `🆔 *জাতীয় পরিচয়পত্র নং:* ${info.nationalId}\n` +
+                            `📌 *পিন নং:* ${info.pin}\n` +
+                            `📅 *জন্ম তারিখ:* ${info.dateOfBirth}\n` +
+                            `♂️ *লিঙ্গ:* ${info.gender}\n` +
+                            `🩸 *রক্তের গ্রুপ:* ${info.bloodGroup}\n` +
+                            `👨‍👦 *পিতার নাম:* ${info.fatherName}\n` +
+                            `👩‍👦 *মাতার নাম:* ${info.motherName}\n` +
+                            `🏠 *বর্তমান ঠিকানা:* ${info.preAddress?.addressLine || 'N/A'}\n` +
+                            `🏠 *স্থায়ী ঠিকানা:* ${info.perAddress?.addressLine || 'N/A'}\n\n` +
+                            `📥 *পিডিএফ ডাউনলোড করুন:* ${downloadPdfUrl}`;
 
                         if (info.photo) {
                             await sock.sendMessage(sender, { 
@@ -185,10 +183,10 @@ async function startBot() {
                         }
 
                     } else {
-                        await sock.sendMessage(sender, { text: '⚠️ Dukkhito, ei NID ebong birth date diye kono totho paoya jayni.' });
+                        await sock.sendMessage(sender, { text: '⚠️ দুঃখিত, এই NID এবং জন্ম তারিখ দিয়ে কোনো তথ্য পাওয়া যায়নি।' });
                     }
                 } catch (error) {
-                    await sock.sendMessage(sender, { text: '⚠️ Server-e songjukto hote somosya hoyeche.' });
+                    await sock.sendMessage(sender, { text: '⚠️ সার্ভারে সংযোগ করতে সমস্যা হয়েছে।' });
                 }
             }
         }
